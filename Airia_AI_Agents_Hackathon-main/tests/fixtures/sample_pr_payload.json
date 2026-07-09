@@ -1,0 +1,25 @@
+{
+    "action": "closed",
+    "number": 11111,
+    "pull_request": {
+        "number": 11111,
+        "title": "Add Payment API endpoint",
+        "body": "This PR introduces a new /payments endpoint to handle payment processing.\n\nRelated Jira issue: PAY-21",
+        "merged": true,
+        "head": {
+            "sha": "abc123def456",
+            "ref": "feature/PAY-21-add-payment-api"
+        },
+        "base": {
+            "ref": "master"
+        },
+        "user": {
+            "login": "dev-user"
+        }
+    },
+    "repository": {
+        "full_name": "fastapi/fastapi",
+        "name": "fastapi",
+        "private": false
+    }
+}

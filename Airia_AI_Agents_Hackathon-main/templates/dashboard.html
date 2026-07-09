@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuSync AI - Live Pipeline Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            400: '#38bdf8', // Light blue
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                        },
+                        dark: {
+                            900: '#0f172a', // Slate 900
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(56, 189, 248, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .active-card {
+            background: rgba(14, 165, 233, 0.1);
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        /* Diff styling */
+        .diff-add {
+            color: #34d399;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .diff-remove {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .diff-context {
+            color: #94a3b8;
+        }
+
+        .log-terminal {
+            background: #020617;
+            /* Very dark for contrast */
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .log-line {
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col">
+
+    <!-- Premium Header -->
+    <header class="glass-panel border-b z-10 flex items-center justify-between px-6 py-4 shrink-0">
+        <div class="flex items-center space-x-4">
+            <div
+                class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/30">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
+                    <span>DocuSync AI</span>
+                    <span
+                        class="px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-400 text-xs font-semibold border border-brand-500/30">PIPELINE
+                        VIEWER</span>
+                </h1>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center space-x-2 text-sm text-slate-400 font-medium">
+                <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></div>
+                <span>Live Stream Connected</span>
+            </div>
+            <button onclick="fireDemoPR()"
+                class="group relative px-5 py-2 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg hover:from-emerald-400 hover:to-teal-500 transition-all shadow-lg shadow-emerald-500/25 active:scale-95">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+                        </path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Trigger Demo PR</span>
+                </div>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex overflow-hidden">
+
+        <!-- Left Panel: Feed -->
+        <div class="w-1/3 min-w-[350px] max-w-[450px] border-r border-slate-700/50 flex flex-col bg-slate-900/50">
+            <div class="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center shrink-0">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Pipeline Runs</h2>
+                <span class="text-xs font-mono text-slate-500" id="pr-count">0 runs</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="feed">
+                <!-- PR Cards Injected Here -->
+                <div id="empty-feed"
+                    class="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 opacity-50">
+                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                    <p class="text-sm font-medium">Waiting for webhook events...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Detailed Log & Review -->
+        <div class="flex-1 flex flex-col relative bg-slate-900 bg-opacity-90">
+            <!-- Empty State for Details -->
+            <div id="details-empty"
+                class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-10 transition-opacity">
+                <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4">
+                    </path>
+                </svg>
+                <p class="text-lg">Select a PR to view detailed logs.</p>
+            </div>
+
+            <!-- Details Content -->
+            <div id="details-content" class="flex-1 flex flex-col hidden h-full">
+                <!-- Details Header -->
+                <div class="px-6 py-5 border-b border-slate-700/50 shrink-0 glass-panel">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center space-x-3 mb-2">
+                                <span
+                                    class="px-2 py-0.5 rounded text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700"
+                                    id="detail-pr-num"></span>
+                                <span class="px-2 py-0.5 rounded text-xs font-semibold" id="detail-badge"></span>
+                            </div>
+                            <h2 class="text-xl font-bold text-white mb-1" id="detail-title"></h2>
+                            <p class="text-sm text-slate-400 font-mono" id="detail-jira"></p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Status</div>
+                            <div class="text-sm font-medium text-brand-400" id="detail-status">Running...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Split View: Logs (Top) & Diff/Review (Bottom) -->
+                <div class="flex-1 flex flex-col min-h-0">
+
+                    <!-- Terminal Logs -->
+                    <div class="flex-1 flex flex-col border-b border-slate-700/50 min-h-0">
+                        <div
+                            class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 flex items-center justify-between shrink-0">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                Pipeline Execution Log
+                            </span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-4 log-terminal font-mono text-sm space-y-1"
+                            id="terminal-log">
+                            <!-- Log lines injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Review Panel (Only shows if there's diff or confidence info) -->
+                    <div class="flex-1 flex flex-col bg-slate-900 min-h-0 hidden" id="review-section">
+                        <div
+                            class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 flex justify-between items-center shrink-0">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                    </path>
+                                </svg>
+                                Document Analysis & Diff
+                            </span>
+
+                            <div class="flex items-center space-x-2 text-xs" id="confidence-wrap">
+                                <span class="text-slate-400">Confidence:</span>
+                                <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-amber-500 rounded-full" id="confidence-bar" style="width:0%">
+                                    </div>
+                                </div>
+                                <span class="font-bold text-amber-500" id="confidence-val">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-4">
+                            <div id="uncertainty-note"
+                                class="mb-4 text-sm text-amber-400/90 italic hidden px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                            </div>
+                            <div class="font-mono text-xs rounded-lg overflow-hidden border border-slate-700 bg-[#0f172a] p-4"
+                                id="review-diff" style="white-space: pre-wrap;">
+                                <!-- Diff injected here -->
+                            </div>
+                        </div>
+
+                        <!-- HITL Action Banner -->
+                        <div id="hitl-banner"
+                            class="hidden shrink-0 px-6 py-4 bg-amber-500/10 border-t border-amber-500/20 flex items-center justify-between">
+                            <div class="flex items-center space-x-3 text-amber-400">
+                                <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                    </path>
+                                </svg>
+                                <div>
+                                    <h4 class="font-bold text-sm">Human Review Required</h4>
+                                    <p class="text-xs opacity-80">Waiting for approval via Slack Block Kit message.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast"
+        class="fixed bottom-6 m-auto left-0 right-0 w-max px-6 py-3 bg-emerald-500 text-white font-medium rounded-full shadow-lg shadow-emerald-500/30 transform transition-all duration-300 translate-y-20 opacity-0 z-50">
+        🚀 Demo Pipeline Triggered!
+    </div>
+
+    <script>
+        const prDataMap = new Map(); // Store state per PR
+        let activePR = null;
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (msg) toast.innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        async function fireDemoPR() {
+            try {
+                const btn = document.querySelector('button');
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                await fetch('/api/demo', { method: 'POST' });
+                showToast("🚀 Demo Pipeline Triggered!");
+
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }, 2000);
+            } catch (e) {
+                console.error(e);
+                showToast("❌ Error triggering demo");
+            }
+        }
+
+        function getClassifierBadge(label) {
+            if (!label) return { class: 'bg-slate-700 text-slate-300 border-slate-600', text: 'PROCESSING' };
+            const lower = label.toLowerCase();
+            if (lower.includes('new_feature') || lower.includes('new_page')) return { class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', text: 'NEW PAGE' };
+            if (lower.includes('functionality') || lower.includes('small')) return { class: 'bg-brand-500/20 text-brand-400 border-brand-500/30', text: 'SECTION UPDATED' };
+            if (lower.includes('breaking')) return { class: 'bg-rose-500/20 text-rose-400 border-rose-500/30', text: 'BREAKING CHANGE' };
+            if (lower.includes('hitl') || lower.includes('review') || lower.includes('massive')) return { class: 'bg-amber-500/20 text-amber-400 border-amber-500/30', text: 'NEEDS REVIEW' };
+            return { class: 'bg-slate-700 text-slate-300 border-slate-600', text: label.toUpperCase() };
+        }
+
+        function selectPR(pr) {
+            // Update selection UI
+            if (activePR) {
+                const oldCard = document.getElementById(`pr-card-${activePR}`);
+                if (oldCard) oldCard.classList.remove('active-card');
+            }
+            activePR = pr;
+            const newCard = document.getElementById(`pr-card-${pr}`);
+            if (newCard) newCard.classList.add('active-card');
+
+            const prData = prDataMap.get(pr);
+            if (!prData) return;
+
+            document.getElementById('details-empty').classList.add('hidden');
+            document.getElementById('details-content').classList.remove('hidden');
+
+            // Populate header
+            document.getElementById('detail-pr-num').innerText = `PR #${pr}`;
+            document.getElementById('detail-title').innerText = prData.title || `Processing PR #${pr}...`;
+            document.getElementById('detail-jira').innerText = prData.jira_key ? `JIRA: ${prData.jira_key}` : '';
+
+            const badgeInfo = getClassifierBadge(prData.classification_label);
+            const badgeEl = document.getElementById('detail-badge');
+            badgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold tracking-wider border ${badgeInfo.class}`;
+            badgeEl.innerText = badgeInfo.text;
+
+            document.getElementById('detail-status').innerText = prData.pipeline_status || 'Running...';
+
+            // Populate logs
+            const terminal = document.getElementById('terminal-log');
+            terminal.innerHTML = prData.logs.map(log => {
+                let color = 'text-slate-300';
+                if (log.isError) color = 'text-red-400';
+                else if (log.isSuccess) color = 'text-emerald-400';
+                else if (log.isAgent) color = 'text-brand-400';
+                else if (log.isSubLog) color = 'text-slate-400 italic text-[13px]';
+                
+                return `<div class="log-line flex"><span class="text-slate-600 mr-3 w-20 shrink-0">[${log.time}]</span><span class="${color}">${log.msg}</span></div>`;
+            }).join('');
+            terminal.scrollTop = terminal.scrollHeight;
+
+            // Handle Diff/Review Panel
+            const reviewSec = document.getElementById('review-section');
+            if (prData.diff_html || prData.diff || prData.classification_label) {
+                reviewSec.classList.remove('hidden');
+
+                // Confidence
+                let conf = prData.confidence || '0';
+                if (typeof conf === 'string' && conf.includes('%')) conf = conf.replace('%', '');
+                if (conf === 'high') conf = 90;
+                if (conf === 'medium') conf = 60;
+                if (conf === 'low') conf = 30;
+                document.getElementById('confidence-bar').style.width = `${conf}%`;
+                document.getElementById('confidence-val').innerText = `${conf}%`;
+
+                // Note
+                const noteEl = document.getElementById('uncertainty-note');
+                if (prData.uncertainty) {
+                    noteEl.innerText = `Agent Note: ${prData.uncertainty}`;
+                    noteEl.classList.remove('hidden');
+                } else {
+                    noteEl.classList.add('hidden');
+                }
+
+                // Diff
+                const diffEl = document.getElementById('review-diff');
+                if (prData.diff_html) {
+                    diffEl.innerHTML = prData.diff_html;
+                } else {
+                    diffEl.innerHTML = '<span class="diff-context">No diff available.</span>';
+                }
+
+                // HITL Banner
+                const hitlBanner = document.getElementById('hitl-banner');
+                if (prData.status === 'hitl') {
+                    hitlBanner.classList.remove('hidden');
+                } else {
+                    hitlBanner.classList.add('hidden');
+                }
+            } else {
+                reviewSec.classList.add('hidden');
+            }
+        }
+
+        function createCardRaw(pr) {
+            return `
+                <div id="pr-card-${pr}" class="glass-card rounded-xl p-4 cursor-pointer" onclick="selectPR('${pr}')">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center space-x-2 w-full max-w-full overflow-hidden">
+                            <span class="text-xs font-mono text-slate-400 shrink-0">#${pr}</span>
+                            <h3 class="font-semibold text-sm truncate" id="card-title-${pr}">Initializing...</h3>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mt-3">
+                        <span id="card-badge-${pr}" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider border bg-slate-700 text-slate-300 border-slate-600">PROCESSING</span>
+                        <div class="flex items-center space-x-1.5" id="card-dots-${pr}">
+                            <div class="w-2 h-2 rounded-full bg-slate-600 animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+                        <span id="card-status-${pr}" class="truncate pr-2">Connecting to agent pipeline...</span>
+                        <span id="card-time-${pr}" class="shrink-0 text-[10px]">Just now</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatTime() {
+            const d = new Date();
+            return d.getHours().toString().padStart(2, '0') + ':' +
+                d.getMinutes().toString().padStart(2, '0') + ':' +
+                d.getSeconds().toString().padStart(2, '0');
+        }
+
+        function parseDiffToHtml(rawDiff) {
+            if (!rawDiff) return '';
+            const lines = rawDiff.split('\n');
+            let html = '';
+            lines.forEach(line => {
+                const esc = line.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                if (line.startsWith('+') && !line.startsWith('+++')) {
+                    html += `<span class="diff-line diff-add">${esc}</span>\n`;
+                } else if (line.startsWith('-') && !line.startsWith('---')) {
+                    html += `<span class="diff-line diff-remove">${esc}</span>\n`;
+                } else {
+                    html += `<span class="diff-line diff-context">${esc}</span>\n`;
+                }
+            });
+            return html;
+        }
+
+        // SSE Setup
+        const eventSource = new EventSource('/api/events');
+
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const pr = data.pr_number;
+            if (!pr) return;
+
+            // Initialize PR data if missing
+            if (!prDataMap.has(pr)) {
+                prDataMap.set(pr, {
+                    title: '',
+                    jira_key: '',
+                    classification_label: '',
+                    confidence: '',
+                    uncertainty: '',
+                    diff: '',
+                    diff_html: '',
+                    logs: [],
+                    status: 'running',
+                    pipeline_status: 'Initializing...'
+                });
+
+                // Add to feed UI
+                document.getElementById('empty-feed').classList.add('hidden');
+                const feed = document.getElementById('feed');
+                feed.insertAdjacentHTML('afterbegin', createCardRaw(pr));
+                document.getElementById('pr-count').innerText = `${prDataMap.size} runs`;
+
+                // Auto-select if first
+                if (!activePR) selectPR(pr);
+            }
+
+            const prData = prDataMap.get(pr);
+
+            // Update internal state
+            if (data.title) prData.title = data.title;
+            if (data.jira_key) prData.jira_key = data.jira_key;
+            if (data.classification_label) prData.classification_label = data.classification_label;
+            if (data.confidence) prData.confidence = data.confidence;
+            if (data.uncertainty) prData.uncertainty = data.uncertainty;
+
+            // Handle diff processing
+            if (data.diff && !prData.diff) {
+                prData.diff = data.diff;
+                prData.diff_html = parseDiffToHtml(data.diff);
+            } else if (data.old_text || data.new_text) {
+                let dhtml = '';
+                if (data.old_text) dhtml += data.old_text.split('\n').map(l => `<span class="diff-line diff-remove">- ${l.replace(/</g, '&lt;')}</span>\n`).join('');
+                if (data.new_text) dhtml += data.new_text.split('\n').map(l => `<span class="diff-line diff-add">+ ${l.replace(/</g, '&lt;')}</span>\n`).join('');
+                prData.diff_html = dhtml;
+            }
+
+            if (data.status) prData.status = data.status;
+            if (data.label) {
+                prData.pipeline_status = data.label;
+
+                // Add to logs
+                const isError = data.status === 'rejected';
+                const isSuccess = data.status === 'done' || data.label.includes('Approved');
+                const isAgent = data.agent ? true : false;
+
+                let logPrefix = '';
+                if (data.agent == 1) logPrefix = '🔍 [Gateway] ';
+                else if (data.agent == 2) logPrefix = '🧠 [Analyzer] ';
+                else if (data.agent == 3) logPrefix = '📝 [Writer] ';
+                else if (data.agent == 4) logPrefix = '💬 [Router] ';
+                else if (data.agent == 5) logPrefix = '✅ [Publisher] ';
+
+                prData.logs.push({
+                    time: formatTime(),
+                    msg: `${logPrefix}${data.label}`,
+                    isError, isSuccess, isAgent,
+                    isSubLog: false
+                });
+            }
+
+            // Handle sub logs
+            if (data.sub_log) {
+                prData.logs.push({
+                    time: formatTime(),
+                    msg: `    ↳ ${data.sub_log}`,
+                    isError: false, isSuccess: false, isAgent: false,
+                    isSubLog: true
+                });
+            }
+
+            // --- Update UI ---
+            // Card Title
+            if (prData.title) document.getElementById(`card-title-${pr}`).innerText = prData.title;
+
+            // Card Status List
+            if (data.label) document.getElementById(`card-status-${pr}`).innerText = data.label;
+
+            // Card Badge
+            const badgeInfo = getClassifierBadge(prData.classification_label);
+            const badgeEl = document.getElementById(`card-badge-${pr}`);
+            badgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold tracking-wider border ${badgeInfo.class}`;
+            badgeEl.innerText = badgeInfo.text;
+
+            // Card Dots (Static visualization based on agents)
+            if (data.status === 'done' || data.status === 'rejected' || data.status === 'hitl') {
+                const dotsWrap = document.getElementById(`card-dots-${pr}`);
+                dotsWrap.innerHTML = ''; // reset
+                let maxDots = 5;
+                let reached = parseInt(data.agent) || 1;
+
+                for (let i = 1; i <= maxDots; i++) {
+                    let dClass = 'bg-slate-700';
+                    if (i < reached) dClass = 'bg-emerald-500';
+                    else if (i === reached) {
+                        if (data.status === 'done') dClass = 'bg-emerald-500';
+                        else if (data.status === 'hitl') dClass = 'bg-amber-500 animate-pulse';
+                        else if (data.status === 'rejected') dClass = 'bg-rose-500';
+                    }
+                    dotsWrap.innerHTML += `<div class="w-2 h-2 rounded-full ${dClass}"></div>`;
+                }
+            }
+
+            // Refresh details panel if this is the active PR
+            if (activePR === pr) {
+                selectPR(pr);
+            }
+        };
+
+    </script>
+</body>
+
+</html>
